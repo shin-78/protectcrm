@@ -112,7 +112,7 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => {
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
   logger.info(`🚀 Server running on port ${PORT}`);
   logger.info(`📡 WebSocket ready`);
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
