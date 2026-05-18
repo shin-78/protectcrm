@@ -3,9 +3,22 @@ set -e
 
 echo "==> ProtectCRM: Starting Evolution API with smart migration support..."
 
-# Evolution API stores files here
-APP_DIR="/evolution"
-cd "$APP_DIR"
+# Map DATABASE_CONNECTION_URI to DATABASE_URL if not already set
+# (Render uses DATABASE_CONNECTION_URI but Prisma needs DATABASE_URL)
+if [ -z "$DATABASE_URL" ] && [ -n "$DATABASE_CONNECTION_URI" ]; then
+  export DATABASE_URL="$DATABASE_CONNECTION_URI"
+  echo "==> Mapped DATABASE_CONNECTION_URI to DATABASE_URL"
+fi
+
+if [ -z "$DATABASE_URL" ]; then
+  echo "==> ERROR: Neither DATABASE_URL nor DATABASE_CONNECTION_URI is set!"
+  exit 1
+fi
+
+echo "==> Database URL is set, proceeding..."
+
+# Navigate to Evolution API directory
+cd /evolution
 
 # Prepare migrations
 echo "==> Preparing postgresql migrations..."
@@ -15,12 +28,12 @@ cp -r ./prisma/postgresql-migrations ./prisma/migrations
 echo "==> Running prisma migrate deploy..."
 
 # Try normal deploy first
-if npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma; then
+if npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma 2>&1; then
   echo "==> Migrations applied successfully."
 else
-  echo "==> Deploy failed (P3005 - schema not empty). Attempting to baseline all migrations..."
+  echo "==> Normal deploy failed (likely P3005 - schema not empty). Baselining migrations..."
 
-  # List all migration folders and mark each as applied
+  # Mark all existing migrations as applied (baseline)
   for MIGRATION_DIR in $(ls -d ./prisma/migrations/*/  2>/dev/null | sort); do
     MIGRATION_NAME=$(basename "$MIGRATION_DIR")
     echo "==> Baselining: $MIGRATION_NAME"
@@ -30,9 +43,8 @@ else
   done
 
   echo "==> Retrying migrate deploy after baseline..."
-  npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma || echo "==> All migrations already applied, continuing..."
+  npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma || true
 fi
 
-echo "==> Starting Evolution API..."
-# Start using the original npm start command
+echo "==> Starting Evolution API server..."
 exec npm start
