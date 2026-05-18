@@ -4,9 +4,9 @@ import { whatsappApi } from '@/services/api';
 import { useSocket } from '@/hooks/useSocket';
 import { useWAStore } from '@/store';
 import { formatRelative, cn } from '@/lib/utils';
-import { 
+import {
   Phone, Smartphone, QrCode, LogOut, Loader2, Search, MessageSquare,
-  MoreVertical, Send, Paperclip, Image as ImageIcon, FileText, Check, CheckCheck 
+  MoreVertical, Send, Paperclip, Image as ImageIcon, FileText, Check, CheckCheck
 } from 'lucide-react';
 
 export default function WhatsAppPage() {
@@ -23,7 +23,7 @@ export default function WhatsAppPage() {
   useEffect(() => {
     whatsappApi.getStatus()
       .then(({ data }) => setSession(data))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -116,7 +116,7 @@ export default function WhatsAppPage() {
         <p className="text-muted-foreground mb-8 max-w-md">
           Conecte seu número para atender leads e enviar mensagens diretamente pelo ProtectCRM.
         </p>
-        <button 
+        <button
           onClick={handleConnect}
           disabled={session.status === 'CONNECTING'}
           className="gradient-primary text-white px-8 py-3 rounded-xl font-medium shadow-lg hover:opacity-90 flex items-center gap-2"
@@ -172,9 +172,9 @@ export default function WhatsAppPage() {
         <div className="p-3 border-b border-border">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Pesquisar conversa..." 
+            <input
+              type="text"
+              placeholder="Pesquisar conversa..."
               className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:border-primary"
             />
           </div>
@@ -279,8 +279,8 @@ export default function WhatsAppPage() {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); }
                 }}
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={!inputText.trim() || sending}
                 className="p-3 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm mb-0.5 mr-0.5"
               >
@@ -293,7 +293,7 @@ export default function WhatsAppPage() {
         <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 text-muted-foreground">
           <Smartphone className="w-16 h-16 mb-4 opacity-20" />
           <h2 className="text-xl font-medium text-foreground mb-2">WhatsApp Web</h2>
-          <p className="text-sm text-center max-w-sm">Envie e receba mensagens sem manter seu celular conectado.<br/>Selecione uma conversa para começar.</p>
+          <p className="text-sm text-center max-w-sm">Envie e receba mensagens sem manter seu celular conectado.<br />Selecione uma conversa para começar.</p>
         </div>
       )}
     </div>

@@ -21,5 +21,5 @@ RUN npm run build
 # Expose port
 EXPOSE 3001
 
-# Start the server
-CMD ["npm", "start"]
+# Run migrations then start server
+CMD npx prisma migrate deploy && npm start
