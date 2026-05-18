@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # ------------------------------------
+  # CRM Backend API
+  # ------------------------------------
+  backend:
+    build: ./backend
+    container_name: protectcrm_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=file:./prod.db
+      - JWT_SECRET=super_secret_jwt_prod_key_change_me
+      - FRONTEND_URL=http://SEU_IP_OU_DOMINIO:3000
+      - EVOLUTION_API_URL=http://evolution_api:8080
+      - WEBHOOK_BASE_URL=http://backend:3001
+    volumes:
+      - backend_data:/app/prisma
+
+  # ------------------------------------
+  # CRM Frontend (Next.js)
+  # ------------------------------------
+  frontend:
+    build: ./frontend
+    container_name: protectcrm_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://SEU_IP_OU_DOMINIO:3001/api
+    depends_on:
+      - backend
+
+  # ------------------------------------
+  # Evolution API (WhatsApp)
+  # ------------------------------------
+  evolution_api:
+    image: atendai/evolution-api:latest
+    container_name: protectcrm_evolution_api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_URL=http://SEU_IP_OU_DOMINIO:8080
+      - AUTHENTICATION_API_KEY=sua-evolution-api-key-secreta
+      - WEBHOOK_GLOBAL_URL=http://backend:3001/api/whatsapp/webhook
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_EVENTS=APPLICATION_STARTUP,QRCODE_UPDATED,MESSAGES_UPSERT,SEND_MESSAGE,CONNECTION_UPDATE
+    volumes:
+      - evolution_instances:/evolution/instances
+
+volumes:
+  backend_data:
+  evolution_instances:
