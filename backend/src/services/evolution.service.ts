@@ -18,6 +18,7 @@ export class EvolutionService {
         instanceName,
         token: instanceName,
         qrcode: true,
+        integration: 'EVOLUTION',
         webhook: {
           url: webhookUrl,
           enabled: true,
