@@ -15,8 +15,12 @@ COPY . .
 # Generate Prisma Client
 RUN npx prisma generate
 
+# Copy start script
+COPY start.sh ./
+RUN chmod +x start.sh
+
 # Build TypeScript code
 RUN npm run build
 
-# Run migrations then start server
-CMD npx prisma migrate resolve --applied 20260518000000_init || true && npx prisma migrate deploy && npm start
+# Run migrations then start server via script
+CMD ["sh", "start.sh"]
