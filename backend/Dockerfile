@@ -18,8 +18,5 @@ RUN npx prisma generate
 # Build TypeScript code
 RUN npm run build
 
-# Expose port
-EXPOSE 3001
-
 # Run migrations then start server
 CMD npx prisma migrate deploy && npm start

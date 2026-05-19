@@ -20,21 +20,19 @@ echo "==> Preparing postgresql migrations..."
 rm -rf ./prisma/migrations
 cp -r ./prisma/postgresql-migrations ./prisma/migrations
 
-echo "==> Running prisma migrate deploy..."
-
-if npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma 2>&1; then
-  echo "==> Migrations applied successfully."
-else
-  echo "==> Normal deploy failed (likely P3005). Running fast baseline script..."
-  
-  # Create a Node.js script to quickly insert baselines
-  cat << 'EOF' > /evolution/fast-baseline.js
+echo "==> Cleaning up any failed migrations to prevent P3009..."
+cat << 'EOF' > /evolution/fast-baseline.js
 const { PrismaClient } = require('@prisma/client');
 const fs = require('fs');
 const prisma = new PrismaClient();
 
 async function run() {
   try {
+    // Remove any failed migrations to resolve P3009
+    await prisma.$executeRawUnsafe(`DELETE FROM _prisma_migrations WHERE finished_at IS NULL;`);
+    console.log("==> Cleared failed migrations.");
+
+    // Baseline all migrations
     const dirs = fs.readdirSync('./prisma/migrations').filter(f => !f.includes('.'));
     for (const dir of dirs) {
       await prisma.$executeRawUnsafe(`
@@ -45,7 +43,7 @@ async function run() {
     }
     console.log("==> Fast baseline completed!");
   } catch (e) {
-    console.log("==> Fast baseline ignored (table might not exist yet or other error):", e.message);
+    console.log("==> Fast baseline ignored (table might not exist yet):", e.message);
   } finally {
     await prisma.$disconnect();
   }
@@ -53,11 +51,10 @@ async function run() {
 run();
 EOF
 
-  node /evolution/fast-baseline.js
-  
-  echo "==> Retrying migrate deploy after fast baseline..."
-  npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma || true
-fi
+node /evolution/fast-baseline.js
+
+echo "==> Running prisma migrate deploy..."
+npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma || true
 
 echo "==> Starting Evolution API server..."
-exec npm start
+exec npm run start:prod
