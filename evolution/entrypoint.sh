@@ -14,5 +14,12 @@ fi
 
 cd /evolution
 
-echo "==> Starting Evolution API server (migrations handled natively)..."
+echo "==> Preparing migrations..."
+rm -rf ./prisma/migrations
+cp -r ./prisma/postgresql-migrations ./prisma/migrations
+
+echo "==> Running database migrations..."
+npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma || echo "==> Migrations warning (continuing anyway)"
+
+echo "==> Starting Evolution API server..."
 exec npm run start:prod
