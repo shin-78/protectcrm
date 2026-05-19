@@ -19,4 +19,4 @@ RUN npx prisma generate
 RUN npm run build
 
 # Run migrations then start server
-CMD npx prisma migrate deploy && npm start
+CMD npx prisma migrate resolve --applied 20260518000000_init || true && npx prisma migrate deploy && npm start
