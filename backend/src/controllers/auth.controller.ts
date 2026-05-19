@@ -4,6 +4,48 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/database';
 import logger from '../config/logger';
 
+export const seedDB = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const masterPassword = await bcrypt.hash('master123', 12);
+    const master = await prisma.user.upsert({
+      where: { email: 'master@protectcrm.com' },
+      update: {},
+      create: {
+        name: 'Admin Master',
+        email: 'master@protectcrm.com',
+        password: masterPassword,
+        role: 'MASTER',
+        phone: '5511999999999',
+      },
+    });
+
+    const pipeline = await prisma.pipeline.upsert({
+      where: { id: 'default-pipeline' },
+      update: {},
+      create: {
+        id: 'default-pipeline',
+        name: 'Pipeline Principal',
+        description: 'Pipeline comercial padrão',
+        isDefault: true,
+        stages: {
+          create: [
+            { name: 'Novo Lead', color: '#6366f1', order: 1 },
+            { name: 'Em Atendimento', color: '#f59e0b', order: 2 },
+            { name: 'Proposta', color: '#3b82f6', order: 3 },
+            { name: 'Negociação', color: '#8b5cf6', order: 4 },
+            { name: 'Fechado', color: '#10b981', order: 5 },
+            { name: 'Perdido', color: '#ef4444', order: 6 },
+          ],
+        },
+      },
+    });
+
+    res.json({ message: 'Database seeded successfully', master, pipeline });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao fazer seed' });
+  }
+};
+
 const generateToken = (user: { id: string; email: string; role: string; name: string }) => {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name },
