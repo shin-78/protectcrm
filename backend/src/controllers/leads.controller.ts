@@ -76,11 +76,12 @@ export const getLeadById = async (req: any, res: Response): Promise<void> => {
 
 export const createLead = async (req: any, res: Response): Promise<void> => {
   try {
-    const { name, email, phone, company, position, source, value, tags, pipelineStageId } = req.body;
+    const { name, email, phone, company, position, source, value, tags, pipelineStageId, products, orderFileUrl } = req.body;
 
     const lead = await prisma.lead.create({
       data: {
         name, email, phone, company, position, source, value: value ? parseFloat(value) : null,
+        products, orderFileUrl,
         tagsStr: tags ? JSON.stringify(tags) : '[]', pipelineStageId,
         operatorId: req.user.role === 'OPERATOR' ? req.user.id : req.body.operatorId || req.user.id,
         status: 'NEW',
@@ -107,7 +108,7 @@ export const createLead = async (req: any, res: Response): Promise<void> => {
 
 export const updateLead = async (req: any, res: Response): Promise<void> => {
   try {
-    const { name, email, phone, company, position, source, status, value, tags, pipelineStageId, operatorId, lostReason } = req.body;
+    const { name, email, phone, company, position, source, status, value, tags, pipelineStageId, operatorId, lostReason, products, orderFileUrl } = req.body;
 
     const existing = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!existing) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
@@ -117,6 +118,7 @@ export const updateLead = async (req: any, res: Response): Promise<void> => {
       data: {
         name, email, phone, company, position, source,
         status, value: value ? parseFloat(value) : undefined,
+        products, orderFileUrl,
         tagsStr: tags ? JSON.stringify(tags) : undefined, pipelineStageId, lostReason,
         operatorId: req.user.role !== 'OPERATOR' ? operatorId : undefined,
       },
