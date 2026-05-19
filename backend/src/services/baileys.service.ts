@@ -11,6 +11,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import logger from '../config/logger';
 import { PrismaClient } from '@prisma/client';
+import pino from 'pino';
+
+const baileysLogger = pino({ level: 'silent' });
 
 const prisma = new PrismaClient();
 
@@ -74,7 +77,7 @@ export class BaileysService {
       version,
       auth: state,
       printQRInTerminal: false,
-      logger: logger as any,
+      logger: baileysLogger as any,
       browser: ['ProtectCRM', 'Chrome', '1.0.0'],
     });
 
