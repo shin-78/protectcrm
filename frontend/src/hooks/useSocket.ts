@@ -33,6 +33,19 @@ export const useSocket = () => {
       setSession({ status: 'QR_CODE', qrCode });
     });
 
+    // Baileys native QR code event
+    socket.on('whatsapp_qr', ({ qrCode }: { qrCode: string }) => {
+      setSession({ status: 'QR_CODE', qrCode });
+    });
+
+    socket.on('whatsapp_status', (data: any) => {
+      if (data.status === 'connected') {
+        setSession({ status: 'CONNECTED', qrCode: undefined, phoneNumber: data.phone });
+      } else if (data.status === 'disconnected') {
+        setSession({ status: 'DISCONNECTED', qrCode: undefined });
+      }
+    });
+
     socket.on('whatsapp_connected', (data: any) => {
       setSession({ status: 'CONNECTED', qrCode: undefined, ...data });
     });

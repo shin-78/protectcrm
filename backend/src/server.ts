@@ -16,6 +16,7 @@ import leadsRoutes from './routes/leads.routes';
 import pipelineRoutes from './routes/pipeline.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import { BaileysService } from './services/baileys.service';
 
 const app = express();
 const httpServer = createServer(app);
@@ -116,6 +117,9 @@ httpServer.listen(Number(PORT), '0.0.0.0', () => {
   logger.info(`🚀 Server running on port ${PORT}`);
   logger.info(`📡 WebSocket ready`);
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Initialize and auto-reconnect WhatsApp sessions
+  BaileysService.init(io);
 });
 
 export { io };

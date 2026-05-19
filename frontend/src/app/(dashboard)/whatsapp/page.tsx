@@ -11,8 +11,10 @@ import {
 
 export default function WhatsAppPage() {
   const { session, setSession } = useWAStore();
-  const { onNewMessage } = useSocket();
+  const { onNewMessage, socket } = useSocket();
   const [loading, setLoading] = useState(true);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [waitingQr, setWaitingQr] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConv, setActiveConv] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -26,6 +28,30 @@ export default function WhatsAppPage() {
       .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
+
+  // Listen for QR code from Baileys via WebSocket
+  useEffect(() => {
+    if (!socket) return;
+    const handleQr = ({ qrCode: qr }: { qrCode: string }) => {
+      setQrCode(qr);
+      setWaitingQr(false);
+      setLoading(false);
+      setSession({ status: 'QR_CODE', qrCode: qr });
+    };
+    const handleConnected = ({ phone }: any) => {
+      setQrCode(null);
+      setWaitingQr(false);
+      setSession({ status: 'CONNECTED', phoneNumber: phone });
+    };
+    socket.on('whatsapp_qr', handleQr);
+    socket.on('whatsapp_status', (data: any) => {
+      if (data.status === 'connected') handleConnected(data);
+    });
+    return () => {
+      socket.off('whatsapp_qr', handleQr);
+      socket.off('whatsapp_status');
+    };
+  }, [socket]);
 
   useEffect(() => {
     if (session.status === 'CONNECTED') {
@@ -62,12 +88,14 @@ export default function WhatsAppPage() {
 
   const handleConnect = async () => {
     setLoading(true);
+    setWaitingQr(true);
+    setQrCode(null);
     try {
-      const { data } = await whatsappApi.connect();
-      setSession(data);
+      await whatsappApi.connect();
+      // QR code will arrive via socket event 'whatsapp_qr'
     } catch (e) {
       console.error('Connection failed');
-    } finally {
+      setWaitingQr(false);
       setLoading(false);
     }
   };
@@ -101,8 +129,14 @@ export default function WhatsAppPage() {
     }
   };
 
-  if (loading) {
-    return <div className="flex h-full items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  // Show spinner while waiting for QR
+  if (loading || waitingQr) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-6 text-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">{waitingQr ? 'Gerando QR Code...' : 'Carregando...'}</p>
+      </div>
+    );
   }
 
   // Connection Screens
@@ -133,12 +167,17 @@ export default function WhatsAppPage() {
       <div className="flex h-full flex-col items-center justify-center p-6 text-center">
         <h2 className="text-2xl font-bold mb-2">Escaneie o QR Code</h2>
         <p className="text-muted-foreground mb-8">
-          Abra o WhatsApp no seu celular, vá em Aparelhos Conectados e aponte a câmera.
+          Abra o WhatsApp no seu celular → <strong>Aparelhos Conectados</strong> → aponte a câmera.
         </p>
         <div className="p-4 bg-white rounded-2xl shadow-xl qr-pulse">
-          <img src={`data:image/png;base64,${session.qrCode}`} alt="WhatsApp QR Code" className="w-64 h-64" />
+          {/* Baileys returns full data URL from QRCode.toDataURL() */}
+          <img src={session.qrCode} alt="WhatsApp QR Code" className="w-64 h-64" />
         </div>
-        <p className="mt-8 text-sm text-muted-foreground animate-pulse">Aguardando conexão...</p>
+        <p className="mt-8 text-sm text-muted-foreground animate-pulse">Aguardando escaneamento...</p>
+        <button
+          onClick={() => setSession({ status: 'DISCONNECTED' })}
+          className="mt-4 text-sm text-muted-foreground underline"
+        >Cancelar</button>
       </div>
     );
   }

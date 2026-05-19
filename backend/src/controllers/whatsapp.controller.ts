@@ -1,41 +1,33 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-import EvolutionService from '../services/evolution.service';
+import { BaileysService } from '../services/baileys.service';
 import logger from '../config/logger';
 
 export const connectWhatsapp = async (req: any, res: Response): Promise<void> => {
   try {
     const userId = req.user.id;
     const instanceName = `crm_user_${userId}`;
-    const webhookUrl = `${process.env.WEBHOOK_BASE_URL}/api/whatsapp/webhook/${userId}`;
+    const { io } = req.app.locals;
 
-    let session = await prisma.whatsappSession.findUnique({ where: { userId } });
-
-    if (!session) {
-      // Create instance in Evolution API
-      try {
-        await EvolutionService.createInstance(instanceName, webhookUrl);
-      } catch (e: any) {
-        if (!e.response?.data?.message?.includes('already exists')) throw e;
-      }
-
-      session = await prisma.whatsappSession.create({
-        data: { userId, instanceName, status: 'CONNECTING', webhookUrl },
-      });
-    }
-
-    // Get QR code
-    const qrData = await EvolutionService.getQrCode(instanceName);
-
-    const qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null;
-    const pairingCode = qrData?.code || null;
-
-    await prisma.whatsappSession.update({
+    // Upsert session record
+    await prisma.whatsappSession.upsert({
       where: { userId },
-      data: { status: 'QR_CODE', qrCode },
+      create: { userId, instanceName, status: 'CONNECTING' },
+      update: { status: 'CONNECTING' },
     });
 
-    res.json({ qrCode, pairingCode, instanceName, status: 'QR_CODE' });
+    // Emit function to push events to this user via Socket.io
+    const emitFn = (event: string, data: any) => {
+      io?.to(`user:${userId}`).emit(event, data);
+    };
+
+    // Start Baileys connection (async — QR code comes via socket)
+    BaileysService.connectInstance(instanceName, emitFn).catch((err) => {
+      logger.error('Baileys connect error', { error: err.message });
+    });
+
+    // Immediately return — QR code arrives via socket event 'whatsapp_qr'
+    res.json({ status: 'CONNECTING', instanceName, message: 'Aguarde o QR code via WebSocket' });
   } catch (error: any) {
     logger.error('Connect WhatsApp error', { error: error.message });
     res.status(500).json({ error: 'Erro ao conectar WhatsApp: ' + error.message });
@@ -44,8 +36,11 @@ export const connectWhatsapp = async (req: any, res: Response): Promise<void> =>
 
 export const getSessionStatus = async (req: any, res: Response): Promise<void> => {
   try {
+    const userId = req.user.id;
+    const instanceName = `crm_user_${userId}`;
+
     const session = await prisma.whatsappSession.findUnique({
-      where: { userId: req.user.id },
+      where: { userId },
       select: {
         status: true, phoneNumber: true, profileName: true,
         profilePicture: true, qrCode: true, instanceName: true,
@@ -53,43 +48,37 @@ export const getSessionStatus = async (req: any, res: Response): Promise<void> =
       },
     });
 
+    // Check live Baileys status
+    const live = BaileysService.getSession(instanceName);
+    const liveStatus = live?.status || null;
+
     if (!session) {
       res.json({ status: 'DISCONNECTED' });
       return;
     }
 
-    // Check real status from Evolution
-    try {
-      const evolutionStatus = await EvolutionService.getInstanceStatus(session.instanceName);
-      const isConnected = evolutionStatus?.state === 'open';
+    // Sync DB with live status
+    if (liveStatus === 'connected' && session.status !== 'CONNECTED') {
+      await prisma.whatsappSession.update({
+        where: { userId },
+        data: { status: 'CONNECTED', connectedAt: new Date(), qrCode: null },
+      });
+      session.status = 'CONNECTED';
+    }
 
-      if (isConnected && session.status !== 'CONNECTED') {
-        await prisma.whatsappSession.update({
-          where: { userId: req.user.id },
-          data: { status: 'CONNECTED', connectedAt: new Date(), qrCode: null },
-        });
-        session.status = 'CONNECTED';
-      } else if (!isConnected && session.status === 'CONNECTED') {
-        await prisma.whatsappSession.update({
-          where: { userId: req.user.id },
-          data: { status: 'DISCONNECTED', disconnectedAt: new Date() },
-        });
-        session.status = 'DISCONNECTED';
-      }
-    } catch (e) { /* ignore evolution check errors */ }
-
-    res.json(session);
+    res.json({ ...session, liveStatus });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar status' });
   }
 };
+
 
 export const disconnectWhatsapp = async (req: any, res: Response): Promise<void> => {
   try {
     const session = await prisma.whatsappSession.findUnique({ where: { userId: req.user.id } });
     if (!session) { res.status(404).json({ error: 'Sessão não encontrada' }); return; }
 
-    await EvolutionService.logoutInstance(session.instanceName);
+    await BaileysService.disconnectInstance(session.instanceName);
 
     await prisma.whatsappSession.update({
       where: { userId: req.user.id },
@@ -97,8 +86,8 @@ export const disconnectWhatsapp = async (req: any, res: Response): Promise<void>
     });
 
     res.json({ message: 'WhatsApp desconectado' });
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao desconectar' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Erro ao desconectar: ' + error.message });
   }
 };
 
@@ -198,28 +187,24 @@ export const sendMessage = async (req: any, res: Response): Promise<void> => {
       res.status(400).json({ error: 'WhatsApp não conectado' }); return;
     }
 
-    let evolutionResponse: any;
+    let result: any;
     const type = mediaType || 'TEXT';
 
     if (type === 'TEXT') {
-      evolutionResponse = await EvolutionService.sendTextMessage(
+      result = await BaileysService.sendMessage(
         conversation.session.instanceName, conversation.remoteJid, text
       );
-    } else if (type === 'AUDIO') {
-      evolutionResponse = await EvolutionService.sendAudioMessage(
-        conversation.session.instanceName, conversation.remoteJid, mediaUrl
-      );
     } else {
-      evolutionResponse = await EvolutionService.sendMediaMessage(
+      result = await BaileysService.sendMediaMessage(
         conversation.session.instanceName, conversation.remoteJid,
-        { type: type.toLowerCase() as any, url: mediaUrl, caption: text, fileName }
+        type.toLowerCase() as any, mediaUrl, text, fileName
       );
     }
 
     const message = await prisma.message.create({
       data: {
         conversationId, senderId: req.user.id,
-        messageId: evolutionResponse?.key?.id,
+        messageId: result?.key?.id,
         type: type as any, direction: 'OUTBOUND',
         content: text, mediaUrl, mediaMimeType: mediaType,
         fileName, isRead: true,
