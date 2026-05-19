@@ -14,12 +14,5 @@ fi
 
 cd /evolution
 
-echo "==> Preparing migrations..."
-rm -rf ./prisma/migrations
-cp -r ./prisma/postgresql-migrations ./prisma/migrations
-
-echo "==> Running database migrations..."
-npx prisma migrate deploy --schema ./prisma/postgresql-schema.prisma || echo "==> Migrations warning (continuing anyway)"
-
-echo "==> Starting Evolution API server..."
+echo "==> Starting server (tables already created via Supabase SQL Editor)..."
 exec npm run start:prod

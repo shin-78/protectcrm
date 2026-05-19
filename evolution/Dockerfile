@@ -1,4 +1,4 @@
-FROM evoapicloud/evolution-api:latest
+FROM atendai/evolution-api:latest
 
 # Copy custom entrypoint that handles P3005 migration baseline
 COPY entrypoint.sh /usr/local/bin/protectcrm-entrypoint.sh

@@ -18,7 +18,7 @@ export class EvolutionService {
         instanceName,
         token: instanceName,
         qrcode: true,
-        integration: 'EVOLUTION',
+        integration: 'WHATSAPP_BAILEYS',
         webhook: {
           url: webhookUrl,
           enabled: true,
